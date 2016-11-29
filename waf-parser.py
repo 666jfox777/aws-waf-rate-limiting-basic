@@ -29,7 +29,7 @@
 
     Links:
     ======
-    - https://justinfox.me/articles/aws-waf-for-website-safety
+    - https://justinfox.me/articles/aws-waf-rate-limiting
     - https://github.com/awslabs/aws-waf-sample
 '''
 #===============================================================================
@@ -45,7 +45,7 @@ WAF_CONDITION_NAME = "Blacklisted"
 IP_WHITELIST = ['8.8.8.8/32','8.8.4.4/32']
 IP_BLACKLIST = [{'Type': 'IPV4', 'Value': '10.0.0.0/8'},{'Type': 'IPV4', 'Value': '192.168.0.0/16'}]
 
-IP_REQUEST_BLOCKCOUNT = 100
+IP_REQUEST_BLOCKCOUNT = 2
 
 #===============================================================================
 # Imported Libraries
@@ -53,7 +53,19 @@ IP_REQUEST_BLOCKCOUNT = 100
 import json
 import boto3
 import gzip
+import re
 
+#===============================================================================
+# Validate that we're looking at a CIDR notation address
+#===============================================================================
+# Better solution, http://pythonhosted.org/netaddr/, 
+def validate_cidr(ip_or_cidr):
+    REGULAR_EXP = re.compile(r'^([0-9]{1,3}\.)([0-9]{1,3}\.)([0-9]{1,3}\.)([0-9]{1,3})(/([0-9]{1,2}))')
+    if REGULAR_EXP.search(ip_or_cidr) is not None:
+        cidr = ip_or_cidr
+    else:
+        cidr = ip_or_cidr + '/32'
+    return cidr
 
 #===============================================================================
 # Get S3 Object (gzip'd log file)
@@ -90,7 +102,7 @@ def get_logfile(bucket_name, key_name):
                     if line.startswith('#'):
                         continue
                     line_data = line.split('\t')
-                    processed = {'date':line_data[0], 'time' : line_data[1], 'edge_location':line_data[2], 'ip':line_data[4], 'http_method':line_data[5], 'url':line_data[9]+line_data[7], 'response_code':line_data[8]}
+                    processed = {'date':line_data[0], 'time' : line_data[1], 'edge_location':line_data[2], 'ip':validate_cidr(line_data[4]), 'http_method':line_data[5], 'url':line_data[9]+line_data[7], 'response_code':line_data[8]}
                     logs.append(processed)
                 except Exception, e:
                     #-----------------------------------------------------------
